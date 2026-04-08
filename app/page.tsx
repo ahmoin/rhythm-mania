@@ -96,22 +96,7 @@ export default function Page() {
 			name: f.replace(/^\d+\s+/, "").replace(/\.osz$/i, ""),
 			path: `/songs/${f}`,
 		}));
-		(async () => {
-			for (let i = 0; i < SONG_FILES.length; i++) {
-				try {
-					const res = await fetch(songMetas[i].path);
-					const z = await JSZip.loadAsync(await res.arrayBuffer());
-					const osuKey = Object.keys(z.files).find(
-						(k) => k.endsWith(".osu") && !z.files[k].dir,
-					);
-					if (!osuKey) continue;
-					const { audioFilename } = parseOsu(
-						await z.files[osuKey].async("string"),
-					);
-					songMetas[i].name = audioFilename.replace(/\.[^.]+$/, "");
-				} catch {}
-			}
-		})();
+
 		let difficulties: { name: string; file: string }[] = [];
 		let currentZip: JSZip | null = null;
 		let revokeUrl = "";
