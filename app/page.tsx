@@ -91,7 +91,7 @@ export default function Page() {
 		const SPEED = 90;
 		const SCROLL_TIME = H / SPEED;
 
-		type Phase = "menu" | "loading" | "difficulty" | "game";
+		type Phase = "menu" | "loading" | "difficulty" | "game" | "results";
 		let phase: Phase = "menu";
 		let mouseX = 0,
 			mouseY = 0;
@@ -119,11 +119,21 @@ export default function Page() {
 		let chart: ChartNote[] = [];
 		let chartIdx = 0;
 		let started = false;
+		let totalNotes = 0;
+
+		let selectedSong = "";
+		let selectedDiff = "";
 
 		let notes: Note[] = [];
 		const keys = [false, false];
 		let hitEffects: HitEffect[] = [];
 		let score = 0;
+		let perfectCount = 0,
+			greatCount = 0,
+			okayCount = 0,
+			missCount = 0;
+		let combo = 0,
+			maxCombo = 0;
 		let status = "";
 		let statusTimer = 0;
 
@@ -132,9 +142,34 @@ export default function Page() {
 			statusTimer = 50;
 		};
 
+		const recordHit = (judgement: "perfect" | "great" | "okay" | "miss") => {
+			if (judgement === "perfect") {
+				perfectCount++;
+				score++;
+				combo++;
+				setStatus("Perfect");
+			} else if (judgement === "great") {
+				greatCount++;
+				score++;
+				combo++;
+				setStatus("Great");
+			} else if (judgement === "okay") {
+				okayCount++;
+				combo = 0;
+				setStatus("Okay");
+			} else {
+				missCount++;
+				combo = 0;
+				setStatus("Miss!");
+			}
+			if (combo > maxCombo) maxCombo = combo;
+		};
+
 		async function loadFromZip(z: JSZip, filename: string) {
 			const content = await z.files[filename].async("string");
 			const { chart: parsed, audioFilename } = parseOsu(content);
+			const versionMatch = content.match(/^Version:(.+)$/m);
+			selectedDiff = versionMatch ? versionMatch[1].trim() : filename;
 			const audioKey = Object.keys(z.files).find(
 				(k) => k.toLowerCase() === audioFilename.toLowerCase(),
 			);
@@ -144,13 +179,23 @@ export default function Page() {
 			revokeUrl = URL.createObjectURL(blob);
 			if (audio) audio.pause();
 			audio = new Audio(revokeUrl);
+			audio.addEventListener("ended", () => {
+				if (phase === "game") phase = "results";
+			});
 			chart = parsed;
+			totalNotes = chart.length;
 			chartIdx = 0;
 			notes = [];
 			keys[0] = false;
 			keys[1] = false;
 			hitEffects = [];
 			score = 0;
+			perfectCount = 0;
+			greatCount = 0;
+			okayCount = 0;
+			missCount = 0;
+			combo = 0;
+			maxCombo = 0;
 			status = "";
 			statusTimer = 0;
 			started = false;
@@ -242,13 +287,16 @@ export default function Page() {
 				ctx.fillStyle = isHot ? "#fff" : "#ddd";
 				ctx.font = "bold 11px monospace";
 				ctx.fillText(song.name, 22, y + 22);
-				const path = song.path;
+				const { name, path } = song;
 				buttons.push({
 					x: 15,
 					y,
 					w: W - 30,
 					h: 36,
-					action: () => loadOsz(path),
+					action: () => {
+						selectedSong = name;
+						loadOsz(path);
+					},
 				});
 				y += 44;
 			}
@@ -304,6 +352,91 @@ export default function Page() {
 			});
 		}
 
+		function drawResults() {
+			ctx.fillStyle = "#181818";
+			ctx.fillRect(0, 0, W, H);
+
+			ctx.fillStyle = "#5a5";
+			ctx.font = "bold 16px monospace";
+			ctx.textAlign = "center";
+			ctx.fillText("results", W / 2, 24);
+
+			ctx.font = "bold 9px monospace";
+			ctx.fillStyle = "#ddd";
+			const maxW = W - 20;
+			ctx.save();
+			ctx.beginPath();
+			ctx.rect(10, 28, maxW, 22);
+			ctx.clip();
+			ctx.fillText(selectedSong, W / 2, 38);
+			ctx.restore();
+			ctx.fillStyle = "#888";
+			ctx.font = "8px monospace";
+			ctx.fillText(selectedDiff, W / 2, 50);
+
+			ctx.strokeStyle = "#333";
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(15, 56);
+			ctx.lineTo(W - 15, 56);
+			ctx.stroke();
+
+			ctx.fillStyle = "#fff";
+			ctx.font = "bold 28px monospace";
+			ctx.fillText(`${score}`, W / 2, 84);
+			ctx.fillStyle = "#555";
+			ctx.font = "9px monospace";
+			ctx.fillText("score", W / 2, 96);
+
+			const accuracy =
+				totalNotes === 0
+					? 100
+					: ((perfectCount * 3 + greatCount * 2 + okayCount) /
+							(totalNotes * 3)) *
+						100;
+			ctx.textAlign = "left";
+			ctx.fillStyle = "#aaa";
+			ctx.font = "bold 11px monospace";
+			ctx.fillText(`${accuracy.toFixed(2)}%`, 20, 118);
+			ctx.textAlign = "right";
+			ctx.fillText(`${maxCombo}x`, W - 20, 118);
+			ctx.fillStyle = "#555";
+			ctx.font = "8px monospace";
+			ctx.textAlign = "left";
+			ctx.fillText("accuracy", 20, 128);
+			ctx.textAlign = "right";
+			ctx.fillText("max combo", W - 20, 128);
+
+			ctx.strokeStyle = "#333";
+			ctx.beginPath();
+			ctx.moveTo(15, 134);
+			ctx.lineTo(W - 15, 134);
+			ctx.stroke();
+
+			const rows: [string, number, string][] = [
+				["Perfect", perfectCount, "#ffe066"],
+				["Great", greatCount, "#66aaff"],
+				["Okay", okayCount, "#aaa"],
+				["Miss", missCount, "#f55"],
+			];
+			let ry = 150;
+			for (const [label, count, color] of rows) {
+				ctx.textAlign = "left";
+				ctx.fillStyle = color;
+				ctx.font = "bold 10px monospace";
+				ctx.fillText(label, 30, ry);
+				ctx.textAlign = "right";
+				ctx.fillStyle = "#ddd";
+				ctx.fillText(`${count}`, W - 30, ry);
+				ry += 18;
+			}
+
+			ctx.textAlign = "left";
+			drawBtn(15, H - 30, W - 30, 20, "back to menu", () => {
+				phase = "menu";
+			});
+		}
+
 		const loop = () => {
 			ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
 
@@ -321,6 +454,11 @@ export default function Page() {
 			}
 			if (phase === "difficulty") {
 				drawDifficulty();
+				requestAnimationFrame(loop);
+				return;
+			}
+			if (phase === "results") {
+				drawResults();
 				requestAnimationFrame(loop);
 				return;
 			}
@@ -374,10 +512,18 @@ export default function Page() {
 			ctx.textAlign = "right";
 			ctx.fillText(`${score}`, W - 15, HZ - 30);
 
+			if (combo > 1) {
+				ctx.fillStyle = "#5a5";
+				ctx.font = "bold 11px monospace";
+				ctx.textAlign = "left";
+				ctx.fillText(`${combo}x`, 15, HZ - 30);
+			}
+
 			if (statusTimer > 0) {
 				statusTimer--;
 				ctx.font = "italic 12px serif";
 				ctx.fillStyle = "#ddd";
+				ctx.textAlign = "right";
 				ctx.fillText(status, W - 15, HZ - 12);
 			}
 			ctx.textAlign = "left";
@@ -439,23 +585,32 @@ export default function Page() {
 						n.held = true;
 					if (n.held && !key && n.y > HZ - 10) {
 						n.done = true;
-						score++;
 						hitEffects.push({ lane: n.lane, t: 15, y: n.y + n.hold });
-						setStatus("Perfect");
+						recordHit("perfect");
 					}
 					if (n.y > HZ + 25) {
 						n.done = true;
-						setStatus("Miss!");
+						recordHit("miss");
 					}
 				} else {
 					if (n.y > HZ + 25) {
 						n.done = true;
-						setStatus("Miss!");
+						recordHit("miss");
 					}
 				}
 			}
 
 			notes = notes.filter((n) => !n.done && n.y < H + 20);
+
+			if (
+				started &&
+				chartIdx >= chart.length &&
+				notes.length === 0 &&
+				audio?.ended
+			) {
+				phase = "results";
+			}
+
 			requestAnimationFrame(loop);
 		};
 
@@ -474,13 +629,11 @@ export default function Page() {
 			closest.done = true;
 			hitEffects.push({ lane, t: 15, y: closest.y + TH / 2 });
 			if (closestDist < 8) {
-				score++;
-				setStatus("Perfect");
+				recordHit("perfect");
 			} else if (closestDist < 20) {
-				score++;
-				setStatus("Great");
+				recordHit("great");
 			} else {
-				setStatus("Okay");
+				recordHit("okay");
 			}
 		};
 
@@ -527,7 +680,10 @@ export default function Page() {
 
 		fileInput.addEventListener("change", () => {
 			const f = fileInput.files?.[0];
-			if (f) loadOsz(f);
+			if (f) {
+				selectedSong = f.name.replace(/\.osz$/i, "");
+				loadOsz(f);
+			}
 			fileInput.value = "";
 		});
 
