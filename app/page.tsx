@@ -73,6 +73,7 @@ export default function Page() {
 		const canvas = ref.current as HTMLCanvasElement;
 		const fileInput = fileRef.current as HTMLInputElement;
 		const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+		ctx.imageSmoothingEnabled = false;
 		const W = 220,
 			H = 400,
 			HZ = 280,
@@ -439,6 +440,7 @@ export default function Page() {
 
 		const loop = () => {
 			ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+			ctx.imageSmoothingEnabled = false;
 
 			buttons = [];
 
