@@ -89,6 +89,12 @@ export default function Page() {
 		const outlineSprite = new Image();
 		outlineSprite.src = "/beat-indicator-template-outline.png";
 
+		const NH = Math.round(NW * (10 / 32));
+		const tintedSprite = document.createElement("canvas");
+		tintedSprite.width = NW;
+		tintedSprite.height = NH;
+		const tCtx = tintedSprite.getContext("2d") as CanvasRenderingContext2D;
+
 		const SPEED = 90;
 		const SCROLL_TIME = H / SPEED;
 
@@ -552,12 +558,13 @@ export default function Page() {
 				const x = n.lane === 0 ? 45 : 135;
 
 				const drawSprite = (sx: number, sy: number, sw: number, sh: number) => {
-					ctx.drawImage(sprite, sx, sy, sw, sh);
-					ctx.save();
-					ctx.globalCompositeOperation = "source-atop";
-					ctx.fillStyle = "#55b33b";
-					ctx.fillRect(sx, sy, sw, sh);
-					ctx.restore();
+					if (sw === NW) {
+						const dy = sy + sh / 2 - NH / 2;
+						ctx.drawImage(tintedSprite, sx, dy, NW, NH);
+					} else {
+						ctx.fillStyle = "#55b33b";
+						ctx.fillRect(sx, sy, sw, sh);
+					}
 				};
 
 				if (n.hold > 0) {
@@ -698,7 +705,15 @@ export default function Page() {
 		const onLoad = () => {
 			if (++loaded === 3) loop();
 		};
-		sprite.onload = onLoad;
+		sprite.onload = () => {
+			tCtx.drawImage(sprite, 0, 0, NW, NH);
+			tCtx.globalCompositeOperation = "multiply";
+			tCtx.fillStyle = "#55b33b";
+			tCtx.fillRect(0, 0, NW, NH);
+			tCtx.globalCompositeOperation = "destination-in";
+			tCtx.drawImage(sprite, 0, 0, NW, NH);
+			onLoad();
+		};
 		outlineSprite.onload = onLoad;
 		Promise.all([
 			document.fonts.load("16px KiwiSoda"),
