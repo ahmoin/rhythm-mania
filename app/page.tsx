@@ -46,16 +46,16 @@ function parseOsu(content: string): {
 		if (section === "[HitObjects]") {
 			const p = line.split(",");
 			if (p.length < 5) continue;
-			const x = parseInt(p[0]),
-				timeMs = parseInt(p[2]),
-				type = parseInt(p[3]);
+			const x = parseInt(p[0], 10),
+				timeMs = parseInt(p[2], 10),
+				type = parseInt(p[3], 10);
 			if (Number.isNaN(x) || Number.isNaN(timeMs) || Number.isNaN(type))
 				continue;
 			if (type & 8) continue;
 			const lane = x >= 256 ? 1 : 0;
 			let hold = 0;
 			if (type & 128 && p.length > 5) {
-				const endMs = parseInt(p[5].split(":")[0]);
+				const endMs = parseInt(p[5].split(":")[0], 10);
 				if (!Number.isNaN(endMs)) hold = (endMs - timeMs) / 1000;
 			}
 			chart.push({ time: timeMs / 1000, lane, hold });
@@ -382,7 +382,7 @@ export default function Page() {
 			}
 			ctx.textAlign = "left";
 
-			const now = audio!.currentTime;
+			const now = audio?.currentTime ?? 0;
 			while (
 				chartIdx < chart.length &&
 				chart[chartIdx].time - now <= SCROLL_TIME
