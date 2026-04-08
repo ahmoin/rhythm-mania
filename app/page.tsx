@@ -257,7 +257,7 @@ export default function Page() {
 			ctx.fillRect(x, y, w, h);
 			ctx.strokeRect(x, y, w, h);
 			ctx.fillStyle = isHot ? "#fff" : "#aaa";
-			ctx.font = "9px monospace";
+			ctx.font = "9px Typecast";
 			ctx.textAlign = "center";
 			ctx.fillText(label, x + w / 2, y + h / 2 + 4);
 			ctx.textAlign = "left";
@@ -268,11 +268,11 @@ export default function Page() {
 			ctx.fillStyle = "#181818";
 			ctx.fillRect(0, 0, W, H);
 			ctx.fillStyle = "#5a5";
-			ctx.font = "bold 18px monospace";
+			ctx.font = "bold 18px KiwiSoda";
 			ctx.textAlign = "center";
 			ctx.fillText("rhythm mania", W / 2, 30);
 			ctx.fillStyle = "#555";
-			ctx.font = "9px monospace";
+			ctx.font = "9px Typecast";
 			ctx.fillText("select a song", W / 2, 46);
 			ctx.textAlign = "left";
 
@@ -285,7 +285,7 @@ export default function Page() {
 				ctx.fillRect(15, y, W - 30, 36);
 				ctx.strokeRect(15, y, W - 30, 36);
 				ctx.fillStyle = isHot ? "#fff" : "#ddd";
-				ctx.font = "bold 11px monospace";
+				ctx.font = "bold 11px Typecast";
 				ctx.fillText(song.name, 22, y + 22);
 				const { name, path } = song;
 				buttons.push({
@@ -303,7 +303,7 @@ export default function Page() {
 
 			if (errorMsg) {
 				ctx.fillStyle = "#f55";
-				ctx.font = "8px monospace";
+				ctx.font = "8px Typecast";
 				ctx.textAlign = "center";
 				ctx.fillText(errorMsg, W / 2, H - 46);
 				ctx.textAlign = "left";
@@ -318,7 +318,7 @@ export default function Page() {
 			ctx.fillStyle = "#181818";
 			ctx.fillRect(0, 0, W, H);
 			ctx.fillStyle = "#aaa";
-			ctx.font = "12px monospace";
+			ctx.font = "12px Typecast";
 			ctx.textAlign = "center";
 			ctx.fillText("loading...", W / 2, H / 2);
 			ctx.textAlign = "left";
@@ -328,7 +328,7 @@ export default function Page() {
 			ctx.fillStyle = "#181818";
 			ctx.fillRect(0, 0, W, H);
 			ctx.fillStyle = "#5a5";
-			ctx.font = "bold 13px monospace";
+			ctx.font = "bold 13px Typecast";
 			ctx.textAlign = "center";
 			ctx.fillText("select difficulty", W / 2, 28);
 			ctx.textAlign = "left";
@@ -357,11 +357,11 @@ export default function Page() {
 			ctx.fillRect(0, 0, W, H);
 
 			ctx.fillStyle = "#5a5";
-			ctx.font = "bold 16px monospace";
+			ctx.font = "bold 16px Typecast";
 			ctx.textAlign = "center";
 			ctx.fillText("results", W / 2, 24);
 
-			ctx.font = "bold 9px monospace";
+			ctx.font = "bold 9px Typecast";
 			ctx.fillStyle = "#ddd";
 			const maxW = W - 20;
 			ctx.save();
@@ -371,7 +371,7 @@ export default function Page() {
 			ctx.fillText(selectedSong, W / 2, 38);
 			ctx.restore();
 			ctx.fillStyle = "#888";
-			ctx.font = "8px monospace";
+			ctx.font = "8px Typecast";
 			ctx.fillText(selectedDiff, W / 2, 50);
 
 			ctx.strokeStyle = "#333";
@@ -382,10 +382,10 @@ export default function Page() {
 			ctx.stroke();
 
 			ctx.fillStyle = "#fff";
-			ctx.font = "bold 28px monospace";
+			ctx.font = "bold 28px Typecast";
 			ctx.fillText(`${score}`, W / 2, 84);
 			ctx.fillStyle = "#555";
-			ctx.font = "9px monospace";
+			ctx.font = "9px Typecast";
 			ctx.fillText("score", W / 2, 96);
 
 			const accuracy =
@@ -396,12 +396,12 @@ export default function Page() {
 						100;
 			ctx.textAlign = "left";
 			ctx.fillStyle = "#aaa";
-			ctx.font = "bold 11px monospace";
+			ctx.font = "bold 11px Typecast";
 			ctx.fillText(`${accuracy.toFixed(2)}%`, 20, 118);
 			ctx.textAlign = "right";
 			ctx.fillText(`${maxCombo}x`, W - 20, 118);
 			ctx.fillStyle = "#555";
-			ctx.font = "8px monospace";
+			ctx.font = "8px Typecast";
 			ctx.textAlign = "left";
 			ctx.fillText("accuracy", 20, 128);
 			ctx.textAlign = "right";
@@ -423,7 +423,7 @@ export default function Page() {
 			for (const [label, count, color] of rows) {
 				ctx.textAlign = "left";
 				ctx.fillStyle = color;
-				ctx.font = "bold 10px monospace";
+				ctx.font = "bold 10px Typecast";
 				ctx.fillText(label, 30, ry);
 				ctx.textAlign = "right";
 				ctx.fillStyle = "#ddd";
@@ -468,7 +468,7 @@ export default function Page() {
 
 			if (!started) {
 				ctx.fillStyle = "#fff";
-				ctx.font = "bold 16px monospace";
+				ctx.font = "bold 16px Typecast";
 				ctx.textAlign = "center";
 				ctx.fillText("press any key to start", W / 2, H / 2);
 				ctx.textAlign = "left";
@@ -503,25 +503,25 @@ export default function Page() {
 			ctx.lineWidth = 1;
 
 			ctx.fillStyle = "#aaa";
-			ctx.font = "14px monospace";
+			ctx.font = "14px Typecast";
 			ctx.fillText("A", 58, HZ + 20);
 			ctx.fillText("D", 148, HZ + 20);
 
 			ctx.fillStyle = "#fff";
-			ctx.font = "bold 20px monospace";
+			ctx.font = "bold 20px Typecast";
 			ctx.textAlign = "right";
 			ctx.fillText(`${score}`, W - 15, HZ - 30);
 
 			if (combo > 1) {
 				ctx.fillStyle = "#5a5";
-				ctx.font = "bold 11px monospace";
+				ctx.font = "bold 11px Typecast";
 				ctx.textAlign = "left";
 				ctx.fillText(`${combo}x`, 15, HZ - 30);
 			}
 
 			if (statusTimer > 0) {
 				statusTimer--;
-				ctx.font = "italic 12px serif";
+				ctx.font = "12px Typecast";
 				ctx.fillStyle = "#ddd";
 				ctx.textAlign = "right";
 				ctx.fillText(status, W - 15, HZ - 12);
@@ -694,10 +694,15 @@ export default function Page() {
 
 		let loaded = 0;
 		const onLoad = () => {
-			if (++loaded === 2) loop();
+			if (++loaded === 3) loop();
 		};
 		sprite.onload = onLoad;
 		outlineSprite.onload = onLoad;
+		Promise.all([
+			document.fonts.load("16px KiwiSoda"),
+			document.fonts.load("16px Typecast"),
+			document.fonts.load("bold 16px Typecast"),
+		]).then(onLoad);
 
 		return () => {
 			window.removeEventListener("keydown", down);
