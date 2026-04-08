@@ -19,7 +19,12 @@ type HitEffect = {
 
 type ChartNote = { time: number; lane: number; hold: number };
 
-const SONG_FILES = ["1168718 Don Toliver - No Idea.osz"];
+const SONG_FILES = [
+	"62004 Adele - Skyfall.osz",
+	"357777 NOMA - Brain Power.osz",
+	"1034041 James Landino - Spellbound.osz",
+	"1168718 Don Toliver - No Idea.osz",
+];
 
 function parseOsu(content: string): {
 	chart: ChartNote[];
@@ -44,13 +49,14 @@ function parseOsu(content: string): {
 			const x = parseInt(p[0]),
 				timeMs = parseInt(p[2]),
 				type = parseInt(p[3]);
-			if (isNaN(x) || isNaN(timeMs) || isNaN(type)) continue;
+			if (Number.isNaN(x) || Number.isNaN(timeMs) || Number.isNaN(type))
+				continue;
 			if (type & 8) continue;
 			const lane = x >= 256 ? 1 : 0;
 			let hold = 0;
 			if (type & 128 && p.length > 5) {
 				const endMs = parseInt(p[5].split(":")[0]);
-				if (!isNaN(endMs)) hold = (endMs - timeMs) / 1000;
+				if (!Number.isNaN(endMs)) hold = (endMs - timeMs) / 1000;
 			}
 			chart.push({ time: timeMs / 1000, lane, hold });
 		}
@@ -435,7 +441,7 @@ export default function Page() {
 						n.done = true;
 						score++;
 						hitEffects.push({ lane: n.lane, t: 15, y: n.y + n.hold });
-						setStatus("Marvelous!");
+						setStatus("Perfect");
 					}
 					if (n.y > HZ + 25) {
 						n.done = true;
@@ -469,12 +475,12 @@ export default function Page() {
 			hitEffects.push({ lane, t: 15, y: closest.y + TH / 2 });
 			if (closestDist < 8) {
 				score++;
-				setStatus("Marvelous!");
+				setStatus("Perfect");
 			} else if (closestDist < 20) {
 				score++;
-				setStatus("Cool!");
+				setStatus("Great");
 			} else {
-				setStatus("Meh");
+				setStatus("Okay");
 			}
 		};
 
