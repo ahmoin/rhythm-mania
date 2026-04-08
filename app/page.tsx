@@ -89,7 +89,7 @@ export default function Page() {
 		const outlineSprite = new Image();
 		outlineSprite.src = "/beat-indicator-template-outline.png";
 
-		const NH = Math.round(NW * (10 / 32));
+		const NH = Math.round(NW * (5 / 32));
 		const tintedSprite = document.createElement("canvas");
 		tintedSprite.width = NW;
 		tintedSprite.height = NH;
