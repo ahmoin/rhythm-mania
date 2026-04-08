@@ -25,6 +25,9 @@ export default function RootLayout({
 				inter.variable,
 			)}
 		>
+			<head>
+				<style>{`html,body{margin:0;padding:0;overflow:hidden;}canvas{display:block;}`}</style>
+			</head>
 			<body>{children}</body>
 		</html>
 	);
