@@ -86,7 +86,7 @@ export function useGameLoop(
 
 		const songMetas: SongMeta[] = SONG_FILES.map((f) => ({
 			name: f.replace(/^\d+\s+/, "").replace(/\.osz$/i, ""),
-			path: `/songs/${f}`,
+			path: `https://res.cloudinary.com/dcylia24n/raw/upload/songs/${encodeURIComponent(f)}`,
 		}));
 
 		const recordHit = (judgement: "perfect" | "great" | "okay" | "miss") => {
