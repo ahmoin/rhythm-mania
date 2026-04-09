@@ -1,3 +1,5 @@
+import type JSZip from "jszip";
+
 export type Note = {
 	lane: number;
 	y: number;
@@ -5,19 +7,10 @@ export type Note = {
 	held: boolean;
 	done: boolean;
 };
-
-export type HitEffect = {
-	lane: number;
-	t: number;
-	y: number;
-};
-
+export type HitEffect = { lane: number; t: number; y: number };
 export type ChartNote = { time: number; lane: number; hold: number };
-
 export type Phase = "menu" | "loading" | "difficulty" | "game" | "results";
-
 export type SongMeta = { name: string; path: string };
-
 export type Btn = {
 	x: number;
 	y: number;
@@ -25,3 +18,25 @@ export type Btn = {
 	h: number;
 	action: () => void;
 };
+
+export interface GameStateRefs {
+	phase: Phase;
+	selectedSong: string;
+	selectedDiff: string;
+	currentZip: JSZip | null;
+	difficulties: { name: string; file: string }[];
+	errorMsg: string;
+	chart: ChartNote[];
+	totalNotes: number;
+	audio: HTMLAudioElement | null;
+	revokeUrl: string;
+
+	score: number;
+	combo: number;
+	maxCombo: number;
+	perfectCount: number;
+	greatCount: number;
+	okayCount: number;
+	missCount: number;
+	resetGameState: () => void;
+}

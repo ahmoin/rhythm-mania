@@ -1,17 +1,16 @@
 "use client";
 
-import JSZip from "jszip";
 import { useEffect } from "react";
 import { GAME_SETTINGS, SONG_FILES } from "@/lib/constants";
-import { parseOsu } from "@/lib/osu-parser";
+import { loadFromZip, loadOsz } from "@/lib/game-actions";
 import type {
 	Btn,
-	ChartNote,
+	GameStateRefs,
 	HitEffect,
 	Note,
-	Phase,
 	SongMeta,
 } from "@/lib/types";
+import { drawResults } from "@/lib/ui-draw";
 
 export function useGameLoop(
 	canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -30,164 +29,102 @@ export function useGameLoop(
 		sprite.src = "/beat-indicator-template.png";
 		const outlineSprite = new Image();
 		outlineSprite.src = "/beat-indicator-template-outline.png";
-
-		const NH = Math.round(NW * (5 / 32));
 		const tintedSprite = document.createElement("canvas");
+		const NH = Math.round(NW * (5 / 32));
 		tintedSprite.width = NW;
 		tintedSprite.height = NH;
-		const tCtx = tintedSprite.getContext("2d") as CanvasRenderingContext2D;
+		const tCtx = tintedSprite.getContext("2d");
+		if (!tCtx) return;
 
-		let phase: Phase = "menu";
+		const state: GameStateRefs = {
+			phase: "menu",
+			selectedSong: "",
+			selectedDiff: "",
+			currentZip: null,
+			difficulties: [],
+			errorMsg: "",
+			chart: [],
+			totalNotes: 0,
+			audio: null,
+			revokeUrl: "",
+			score: 0,
+			combo: 0,
+			maxCombo: 0,
+			perfectCount: 0,
+			greatCount: 0,
+			okayCount: 0,
+			missCount: 0,
+			resetGameState: () => {
+				chartIdx = 0;
+				notes = [];
+				keys[0] = false;
+				keys[1] = false;
+				hitEffects = [];
+				state.score = 0;
+				state.perfectCount = 0;
+				state.greatCount = 0;
+				state.okayCount = 0;
+				state.missCount = 0;
+				state.combo = 0;
+				state.maxCombo = 0;
+				status = "";
+				statusTimer = 0;
+				started = false;
+			},
+		};
+
+		let chartIdx = 0,
+			started = false,
+			status = "",
+			statusTimer = 0;
 		let mouseX = 0,
 			mouseY = 0;
-		let errorMsg = "";
+		let notes: Note[] = [];
+		let hitEffects: HitEffect[] = [];
+		let buttons: Btn[] = [];
+		const keys = [false, false];
 
 		const songMetas: SongMeta[] = SONG_FILES.map((f) => ({
 			name: f.replace(/^\d+\s+/, "").replace(/\.osz$/i, ""),
 			path: `/songs/${f}`,
 		}));
 
-		let difficulties: { name: string; file: string }[] = [];
-		let currentZip: JSZip | null = null;
-		let revokeUrl = "";
-		let buttons: Btn[] = [];
-		let audio: HTMLAudioElement | null = null;
-		let chart: ChartNote[] = [];
-		let chartIdx = 0;
-		let started = false;
-		let totalNotes = 0;
-		let selectedSong = "";
-		let selectedDiff = "";
-		let notes: Note[] = [];
-		const keys = [false, false];
-		let hitEffects: HitEffect[] = [];
-		let score = 0;
-		let perfectCount = 0,
-			greatCount = 0,
-			okayCount = 0,
-			missCount = 0;
-		let combo = 0,
-			maxCombo = 0;
-		let status = "";
-		let statusTimer = 0;
-
-		const setStatus = (s: string) => {
-			status = s;
-			statusTimer = 50;
-		};
-
 		const recordHit = (judgement: "perfect" | "great" | "okay" | "miss") => {
 			if (judgement === "perfect") {
-				perfectCount++;
-				score++;
-				combo++;
-				setStatus("Perfect");
+				state.perfectCount++;
+				state.score++;
+				state.combo++;
+				status = "Perfect";
 			} else if (judgement === "great") {
-				greatCount++;
-				score++;
-				combo++;
-				setStatus("Great");
+				state.greatCount++;
+				state.score++;
+				state.combo++;
+				status = "Great";
 			} else if (judgement === "okay") {
-				okayCount++;
-				combo = 0;
-				setStatus("Okay");
+				state.okayCount++;
+				state.combo = 0;
+				status = "Okay";
 			} else {
-				missCount++;
-				combo = 0;
-				setStatus("Miss!");
+				state.missCount++;
+				state.combo = 0;
+				status = "Miss!";
 			}
-			if (combo > maxCombo) maxCombo = combo;
+			statusTimer = 50;
+			if (state.combo > state.maxCombo) state.maxCombo = state.combo;
 		};
 
-		async function loadFromZip(z: JSZip, filename: string) {
-			const content = await z.files[filename].async("string");
-			const { chart: parsed, audioFilename } = parseOsu(content);
-			const versionMatch = content.match(/^Version:(.+)$/m);
-			selectedDiff = versionMatch ? versionMatch[1].trim() : filename;
-			const audioKey = Object.keys(z.files).find(
-				(k) => k.toLowerCase() === audioFilename.toLowerCase(),
-			);
-			if (!audioKey) throw new Error(`Audio "${audioFilename}" not found`);
-			const blob = await z.files[audioKey].async("blob");
-			if (revokeUrl) URL.revokeObjectURL(revokeUrl);
-			revokeUrl = URL.createObjectURL(blob);
-			if (audio) audio.pause();
-			audio = new Audio(revokeUrl);
-			audio.addEventListener("ended", () => {
-				if (phase === "game") phase = "results";
-			});
-			chart = parsed;
-			totalNotes = chart.length;
-			chartIdx = 0;
-			notes = [];
-			keys[0] = false;
-			keys[1] = false;
-			hitEffects = [];
-			score = 0;
-			perfectCount = 0;
-			greatCount = 0;
-			okayCount = 0;
-			missCount = 0;
-			combo = 0;
-			maxCombo = 0;
-			status = "";
-			statusTimer = 0;
-			started = false;
-			phase = "game";
-		}
-
-		async function loadOsz(source: File | string) {
-			phase = "loading";
-			errorMsg = "";
-			try {
-				let z: JSZip;
-				if (typeof source === "string") {
-					const res = await fetch(source);
-					if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-					z = await JSZip.loadAsync(await res.arrayBuffer());
-				} else {
-					z = await JSZip.loadAsync(source);
-				}
-				const osuFiles = Object.keys(z.files).filter(
-					(k) => k.endsWith(".osu") && !z.files[k].dir,
-				);
-				if (osuFiles.length === 0) throw new Error("No .osu file found");
-				if (osuFiles.length === 1) {
-					await loadFromZip(z, osuFiles[0]);
-				} else {
-					const diffs = await Promise.all(
-						osuFiles.map(async (f) => {
-							const c = await z.files[f].async("string");
-							const match = c.match(/^Version:(.+)$/m);
-							return { name: match ? match[1].trim() : f, file: f };
-						}),
-					);
-					currentZip = z;
-					difficulties = diffs;
-					phase = "difficulty";
-				}
-			} catch (e) {
-				errorMsg = e instanceof Error ? e.message : String(e);
-				phase = "menu";
-			}
-		}
-
-		function hot(x: number, y: number, w: number, h: number) {
-			return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
-		}
-
-		function drawBtn(
+		const drawBtn = (
 			x: number,
 			y: number,
 			w: number,
 			h: number,
 			label: string,
 			action: () => void,
-		) {
-			const isHot = hot(x, y, w, h);
+		) => {
+			const isHot =
+				mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
 			ctx.fillStyle = isHot ? "#2a4a2a" : "#1a2a1a";
 			ctx.strokeStyle = "#5a5";
-			ctx.lineWidth = 1;
 			ctx.fillRect(x, y, w, h);
 			ctx.strokeRect(x, y, w, h);
 			ctx.fillStyle = isHot ? "#fff" : "#aaa";
@@ -196,87 +133,6 @@ export function useGameLoop(
 			ctx.fillText(label, x + w / 2, y + h / 2 + 4);
 			ctx.textAlign = "left";
 			buttons.push({ x, y, w, h, action });
-		}
-
-		const drawMenu = () => {
-			ctx.fillStyle = "#181818";
-			ctx.fillRect(0, 0, W, H);
-			ctx.fillStyle = "#5a5";
-			ctx.font = "bold 18px KiwiSoda";
-			ctx.textAlign = "center";
-			ctx.fillText("rhythm mania", W / 2, 30);
-			ctx.fillStyle = "#555";
-			ctx.font = "9px Typecast";
-			ctx.fillText("select a song", W / 2, 46);
-			ctx.textAlign = "left";
-
-			let y = 60;
-			for (const song of songMetas) {
-				const isHot = hot(15, y, W - 30, 36);
-				ctx.fillStyle = isHot ? "#1f2f1f" : "#161616";
-				ctx.strokeStyle = isHot ? "#5a5" : "#333";
-				ctx.lineWidth = 1;
-				ctx.fillRect(15, y, W - 30, 36);
-				ctx.strokeRect(15, y, W - 30, 36);
-				ctx.fillStyle = isHot ? "#fff" : "#ddd";
-				ctx.font = "bold 11px Typecast";
-				ctx.fillText(song.name, 22, y + 22);
-				const { name, path } = song;
-				buttons.push({
-					x: 15,
-					y,
-					w: W - 30,
-					h: 36,
-					action: () => {
-						selectedSong = name;
-						loadOsz(path);
-					},
-				});
-				y += 44;
-			}
-			if (errorMsg) {
-				ctx.fillStyle = "#f55";
-				ctx.font = "8px Typecast";
-				ctx.textAlign = "center";
-				ctx.fillText(errorMsg, W / 2, H - 46);
-				ctx.textAlign = "left";
-			}
-			drawBtn(15, H - 30, W - 30, 20, "custom song (.osz)", () =>
-				fileInput.click(),
-			);
-		};
-
-		const drawResults = () => {
-			ctx.fillStyle = "#181818";
-			ctx.fillRect(0, 0, W, H);
-			ctx.fillStyle = "#5a5";
-			ctx.font = "bold 16px Typecast";
-			ctx.textAlign = "center";
-			ctx.fillText("results", W / 2, 24);
-			ctx.font = "bold 9px Typecast";
-			ctx.fillStyle = "#ddd";
-			ctx.fillText(selectedSong, W / 2, 38);
-			ctx.fillStyle = "#888";
-			ctx.font = "8px Typecast";
-			ctx.fillText(selectedDiff, W / 2, 50);
-			ctx.fillStyle = "#fff";
-			ctx.font = "bold 28px Typecast";
-			ctx.fillText(`${score}`, W / 2, 84);
-			const accuracy =
-				totalNotes === 0
-					? 100
-					: ((perfectCount * 3 + greatCount * 2 + okayCount) /
-							(totalNotes * 3)) *
-						100;
-			ctx.textAlign = "left";
-			ctx.fillStyle = "#aaa";
-			ctx.font = "bold 11px Typecast";
-			ctx.fillText(`${accuracy.toFixed(2)}%`, 20, 118);
-			ctx.textAlign = "right";
-			ctx.fillText(`${maxCombo}x`, W - 20, 118);
-			drawBtn(15, H - 30, W - 30, 20, "back to menu", () => {
-				phase = "menu";
-			});
 		};
 
 		const loop = () => {
@@ -287,16 +143,29 @@ export function useGameLoop(
 			ctx.imageSmoothingEnabled = false;
 			buttons = [];
 
-			if (phase === "menu") drawMenu();
-			else if (phase === "loading") {
+			if (state.phase === "menu") {
 				ctx.fillStyle = "#181818";
 				ctx.fillRect(0, 0, W, H);
-				ctx.fillStyle = "#aaa";
-				ctx.font = "12px Typecast";
+				ctx.fillStyle = "#5a5";
+				ctx.font = "bold 18px KiwiSoda";
 				ctx.textAlign = "center";
-				ctx.fillText("loading...", W / 2, H / 2);
+				ctx.fillText("rhythm mania", W / 2, 30);
+				ctx.fillStyle = "#555";
+				ctx.font = "9px Typecast";
+				ctx.fillText("select a song", W / 2, 46);
 				ctx.textAlign = "left";
-			} else if (phase === "difficulty") {
+				let y = 60;
+				for (const song of songMetas) {
+					drawBtn(15, y, W - 30, 36, song.name, () => {
+						state.selectedSong = song.name;
+						loadOsz(state, song.path);
+					});
+					y += 44;
+				}
+				drawBtn(15, H - 30, W - 30, 20, "custom song (.osz)", () =>
+					fileInput.click(),
+				);
+			} else if (state.phase === "difficulty") {
 				ctx.fillStyle = "#181818";
 				ctx.fillRect(0, 0, W, H);
 				ctx.fillStyle = "#5a5";
@@ -305,28 +174,19 @@ export function useGameLoop(
 				ctx.fillText("select difficulty", W / 2, 28);
 				ctx.textAlign = "left";
 				let y = 50;
-				for (const d of difficulties) {
-					drawBtn(15, y, W - 30, 24, d.name, async () => {
-						if (!currentZip) return;
-						phase = "loading";
-						try {
-							await loadFromZip(currentZip, d.file);
-						} catch (e) {
-							errorMsg = String(e);
-							phase = "menu";
-						}
+				for (const d of state.difficulties) {
+					drawBtn(15, y, W - 30, 24, d.name, () => {
+						if (state.currentZip) loadFromZip(state, state.currentZip, d.file);
 					});
 					y += 32;
 				}
 				drawBtn(15, H - 30, 50, 20, "<- back", () => {
-					phase = "menu";
-					difficulties = [];
+					state.phase = "menu";
+					state.difficulties = [];
 				});
-			} else if (phase === "results") drawResults();
-			else if (phase === "game") {
+			} else if (state.phase === "game") {
 				ctx.fillStyle = "#181818";
 				ctx.fillRect(0, 0, W, H);
-
 				if (!started) {
 					ctx.fillStyle = "#fff";
 					ctx.font = "bold 16px Typecast";
@@ -340,43 +200,33 @@ export function useGameLoop(
 						const scale = 1 + 0.2 * Math.sqrt(1 - (t - 1) ** 2);
 						const alpha = 0.5 * Math.sqrt(1 - t * t);
 						const cx = fx.lane === 0 ? 45 + NW / 2 : 135 + NW / 2;
+						const cy = fx.y;
+						const rw = NW + 10;
+						const rh = rw * (10 / 32);
 						ctx.save();
 						ctx.globalAlpha = alpha;
-						ctx.translate(cx, fx.y);
+						ctx.translate(cx, cy);
 						ctx.scale(scale, scale);
-						ctx.drawImage(
-							outlineSprite,
-							-(NW + 10) / 2,
-							-((NW + 10) * (10 / 32)) / 2,
-							NW + 10,
-							(NW + 10) * (10 / 32),
-						);
+						ctx.drawImage(outlineSprite, -rw / 2, -rh / 2, rw, rh);
 						ctx.restore();
 					}
 					hitEffects = hitEffects.filter((fx) => fx.t > 0);
-
 					ctx.strokeStyle = "#5a5";
 					ctx.lineWidth = 2;
 					ctx.beginPath();
 					ctx.moveTo(35, HZ);
 					ctx.lineTo(W - 35, HZ);
 					ctx.stroke();
-					ctx.lineWidth = 1;
-
-					ctx.fillStyle = "#aaa";
-					ctx.font = "14px Typecast";
-					ctx.fillText("A", 58, HZ + 20);
-					ctx.fillText("D", 148, HZ + 20);
 
 					ctx.fillStyle = "#fff";
 					ctx.font = "bold 20px Typecast";
 					ctx.textAlign = "right";
-					ctx.fillText(`${score}`, W - 15, HZ - 30);
-					if (combo > 1) {
+					ctx.fillText(`${state.score}`, W - 15, HZ - 30);
+					if (state.combo > 1) {
 						ctx.fillStyle = "#5a5";
 						ctx.font = "bold 11px Typecast";
 						ctx.textAlign = "left";
-						ctx.fillText(`${combo}x`, 15, HZ - 30);
+						ctx.fillText(`${state.combo}x`, 15, HZ - 30);
 					}
 					if (statusTimer > 0) {
 						statusTimer--;
@@ -386,13 +236,17 @@ export function useGameLoop(
 						ctx.fillText(status, W - 15, HZ - 12);
 					}
 					ctx.textAlign = "left";
+					ctx.fillStyle = "#aaa";
+					ctx.font = "14px Typecast";
+					ctx.fillText("A", 58, HZ + 20);
+					ctx.fillText("D", 148, HZ + 20);
 
-					const now = audio?.currentTime ?? 0;
+					const now = state.audio?.currentTime ?? 0;
 					while (
-						chartIdx < chart.length &&
-						chart[chartIdx].time - now <= SCROLL_TIME
+						chartIdx < state.chart.length &&
+						state.chart[chartIdx].time - now <= SCROLL_TIME
 					) {
-						const cn = chart[chartIdx++];
+						const cn = state.chart[chartIdx++];
 						notes.push({
 							lane: cn.lane,
 							y: HZ - (cn.time - now) * SPEED,
@@ -401,157 +255,79 @@ export function useGameLoop(
 							done: false,
 						});
 					}
-
 					for (const n of notes) {
-						if (n.done || n.y > H + 20) continue;
+						if (n.done) continue;
 						n.y += SPEED / 60;
 						const x = n.lane === 0 ? 45 : 135;
-
-						const drawSprite = (
-							sx: number,
-							sy: number,
-							sw: number,
-							sh: number,
-						) => {
-							if (sw === NW) {
-								const dy = sy + sh / 2 - NH / 2;
-								ctx.drawImage(tintedSprite, sx, dy, NW, NH);
-							} else {
-								ctx.fillStyle = "#55b33b";
-								ctx.fillRect(sx, sy, sw, sh);
-							}
-						};
-
 						if (n.hold > 0) {
-							const tailX = x + NW / 2 - TW / 2;
-							const headY = n.y + n.hold;
 							ctx.fillStyle = "rgba(85,179,59,0.4)";
-							ctx.fillRect(tailX, n.y, TW, n.hold);
-							if (n.held) {
-								const litTop = Math.max(n.y, HZ);
-								const litH = headY - litTop;
-								if (litH > 0) drawSprite(tailX, litTop, TW, litH);
-							}
-							drawSprite(x, headY, NW, TH);
+							ctx.fillRect(x + NW / 2 - TW / 2, n.y, TW, n.hold);
+							ctx.drawImage(tintedSprite, x, n.y + n.hold, NW, TH);
 						} else {
-							drawSprite(x, n.y, NW, TH);
+							ctx.drawImage(tintedSprite, x, n.y, NW, TH);
 						}
-
-						const noteEnd = n.hold > 0 ? n.y + n.hold + TH : n.y + TH;
-						const inZone = noteEnd > HZ - 35 && n.y < HZ + 25;
-						const key = keys[n.lane];
-
-						if (n.hold > 0) {
-							const headY = n.y + n.hold;
-							if (
-								inZone &&
-								key &&
-								!n.held &&
-								headY > HZ - 25 &&
-								headY < HZ + 25
-							)
-								n.held = true;
-							if (n.held && !key && n.y > HZ - 10) {
-								n.done = true;
-								hitEffects.push({ lane: n.lane, t: 15, y: n.y + n.hold });
-								recordHit("perfect");
-							}
-							if (n.y > HZ + 25) {
-								n.done = true;
-								recordHit("miss");
-							}
-						} else if (n.y > HZ + 25) {
+						if (n.y > HZ + 25) {
 							n.done = true;
 							recordHit("miss");
 						}
 					}
-					notes = notes.filter((n) => !n.done && n.y < H + 20);
-					if (
-						started &&
-						chartIdx >= chart.length &&
-						notes.length === 0 &&
-						audio?.ended
-					)
-						phase = "results";
+					notes = notes.filter((n) => !n.done);
+					if (state.audio?.ended) state.phase = "results";
 				}
+			} else if (state.phase === "results") {
+				drawResults(ctx, state, drawBtn);
 			}
+
 			requestAnimationFrame(loop);
 		};
 
-		const hitLane = (lane: number) => {
-			let closest: Note | null = null;
-			let closestDist = Infinity;
-			for (const n of notes) {
-				if (n.done || n.hold > 0 || n.lane !== lane) continue;
-				const dist = Math.abs(n.y + TH / 2 - HZ);
-				if (dist < 35 && dist < closestDist) {
-					closestDist = dist;
-					closest = n;
-				}
-			}
-			if (!closest) return;
-			closest.done = true;
-			hitEffects.push({ lane, t: 15, y: closest.y + TH / 2 });
-			if (closestDist < 8) recordHit("perfect");
-			else if (closestDist < 20) recordHit("great");
-			else recordHit("okay");
-		};
-
 		const down = (e: KeyboardEvent) => {
-			if (phase !== "game") return;
+			if (state.phase !== "game") return;
 			if (!started) {
 				started = true;
-				audio?.play();
+				state.audio?.play();
 				return;
 			}
-			if (e.key.toLowerCase() === "a") {
-				keys[0] = true;
-				hitLane(0);
-			}
-			if (e.key.toLowerCase() === "d") {
-				keys[1] = true;
-				hitLane(1);
-			}
-		};
-		const up = (e: KeyboardEvent) => {
-			if (e.key.toLowerCase() === "a") keys[0] = false;
-			if (e.key.toLowerCase() === "d") keys[1] = false;
-		};
-		const onMove = (e: MouseEvent) => {
-			const r = canvas.getBoundingClientRect();
-			mouseX = (e.clientX - r.left) * (W / r.width);
-			mouseY = (e.clientY - r.top) * (H / r.height);
-		};
-		const onClick = () => {
-			for (const b of buttons) {
-				if (
-					mouseX >= b.x &&
-					mouseX < b.x + b.w &&
-					mouseY >= b.y &&
-					mouseY < b.y + b.h
-				) {
-					b.action();
-					break;
+			const l =
+				e.key.toLowerCase() === "a" ? 0 : e.key.toLowerCase() === "d" ? 1 : -1;
+			if (l !== -1) {
+				keys[l] = true;
+				const c = notes.find(
+					(n) => !n.done && n.lane === l && Math.abs(n.y - HZ) < 35,
+				);
+				if (c) {
+					c.done = true;
+					hitEffects.push({ lane: l, t: 15, y: c.y });
+					recordHit(Math.abs(c.y - HZ) < 10 ? "perfect" : "great");
 				}
 			}
-		};
-		const onFileChange = () => {
-			const f = fileInput.files?.[0];
-			if (f) {
-				selectedSong = f.name.replace(/\.osz$/i, "");
-				loadOsz(f);
-			}
-			fileInput.value = "";
 		};
 
 		window.addEventListener("keydown", down);
-		window.addEventListener("keyup", up);
-		canvas.addEventListener("mousemove", onMove);
-		canvas.addEventListener("click", onClick);
-		fileInput.addEventListener("change", onFileChange);
+		canvas.addEventListener("click", () => {
+			const b = buttons.find(
+				(b) =>
+					mouseX >= b.x &&
+					mouseX < b.x + b.w &&
+					mouseY >= b.y &&
+					mouseY < b.y + b.h,
+			);
+			if (b) b.action();
+		});
+		canvas.addEventListener("mousemove", (e) => {
+			const r = canvas.getBoundingClientRect();
+			mouseX = (e.clientX - r.left) * (W / r.width);
+			mouseY = (e.clientY - r.top) * (H / r.height);
+		});
+		fileInput.addEventListener("change", () => {
+			if (fileInput.files?.[0]) {
+				state.selectedSong = fileInput.files[0].name;
+				loadOsz(state, fileInput.files[0]);
+			}
+		});
 
 		let loaded = 0;
-		const checkLoaded = () => {
+		const check = () => {
 			if (++loaded === 3) loop();
 		};
 		sprite.onload = () => {
@@ -561,23 +337,18 @@ export function useGameLoop(
 			tCtx.fillRect(0, 0, NW, NH);
 			tCtx.globalCompositeOperation = "destination-in";
 			tCtx.drawImage(sprite, 0, 0, NW, NH);
-			checkLoaded();
+			check();
 		};
-		outlineSprite.onload = checkLoaded;
+		outlineSprite.onload = check;
 		Promise.all([
 			document.fonts.load("16px KiwiSoda"),
 			document.fonts.load("16px Typecast"),
 			document.fonts.load("bold 16px Typecast"),
-		]).then(checkLoaded);
+		]).then(check);
 
 		return () => {
 			window.removeEventListener("keydown", down);
-			window.removeEventListener("keyup", up);
-			canvas.removeEventListener("mousemove", onMove);
-			canvas.removeEventListener("click", onClick);
-			fileInput.removeEventListener("change", onFileChange);
-			if (audio) audio.pause();
-			if (revokeUrl) URL.revokeObjectURL(revokeUrl);
+			if (state.audio) state.audio.pause();
 		};
 	}, [canvasRef, fileRef]);
 }
