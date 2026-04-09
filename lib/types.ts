@@ -9,7 +9,20 @@ export type Note = {
 };
 export type HitEffect = { lane: number; t: number; y: number };
 export type ChartNote = { time: number; lane: number; hold: number };
-export type Phase = "menu" | "loading" | "difficulty" | "game" | "results";
+export type Phase =
+	| "menu"
+	| "loading"
+	| "difficulty"
+	| "game"
+	| "results"
+	| "story-select";
+
+export type StoryLevel = {
+	song: string;
+	diffIndex: number;
+	label: string;
+	minAccuracy: number;
+};
 export type SongMeta = { name: string; path: string };
 export type Btn = {
 	x: number;
@@ -38,5 +51,9 @@ export interface GameStateRefs {
 	greatCount: number;
 	okayCount: number;
 	missCount: number;
+
+	mode: "free" | "story";
+	storyLevel: number;
+
 	resetGameState: () => void;
 }

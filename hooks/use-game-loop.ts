@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { GAME_SETTINGS, SONG_FILES } from "@/lib/constants";
+import { GAME_SETTINGS, SONG_FILES, STORY_LEVELS } from "@/lib/constants";
 import { loadFromZip, loadOsz } from "@/lib/game-actions";
+import { STORY_CHARTS } from "@/lib/story-charts";
+import { playKick, playSnare, playTick } from "@/lib/synth";
 import type {
 	Btn,
 	GameStateRefs,
@@ -10,7 +12,7 @@ import type {
 	Note,
 	SongMeta,
 } from "@/lib/types";
-import { drawResults } from "@/lib/ui-draw";
+import { drawResults, drawStorySelect } from "@/lib/ui-draw";
 
 export function useGameLoop(
 	canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -36,8 +38,21 @@ export function useGameLoop(
 		const tCtx = tintedSprite.getContext("2d");
 		if (!tCtx) return;
 
+		let storyProgress = (() => {
+			try {
+				return (
+					parseInt(localStorage.getItem("rm_story_progress") ?? "0", 10) || 0
+				);
+			} catch {
+				return 0;
+			}
+		})();
+
+		const songPath = (f: string) =>
+			`https://res.cloudinary.com/rhythm-mania/raw/upload/songs/${encodeURIComponent(f)}`;
+
 		const state: GameStateRefs = {
-			phase: "menu",
+			phase: "story-select",
 			selectedSong: "",
 			selectedDiff: "",
 			currentZip: null,
@@ -54,6 +69,8 @@ export function useGameLoop(
 			greatCount: 0,
 			okayCount: 0,
 			missCount: 0,
+			mode: "free",
+			storyLevel: 0,
 			resetGameState: () => {
 				chartIdx = 0;
 				notes = [];
@@ -73,6 +90,11 @@ export function useGameLoop(
 			},
 		};
 
+		let storyStartMs = 0;
+		let levelBpm = 120;
+		let levelDuration = 0;
+		let lastTickBeat = -1;
+
 		let chartIdx = 0,
 			started = false,
 			status = "",
@@ -84,9 +106,31 @@ export function useGameLoop(
 		let buttons: Btn[] = [];
 		const keys = [false, false];
 
+		const startChart = (idx: number) => {
+			const data = STORY_CHARTS[idx];
+			if (state.audio) {
+				state.audio.pause();
+				state.audio = null;
+			}
+			if (state.revokeUrl) {
+				URL.revokeObjectURL(state.revokeUrl);
+				state.revokeUrl = "";
+			}
+			state.storyLevel = idx;
+			state.mode = "story";
+			state.chart = data.chart.slice();
+			state.totalNotes = data.chart.length;
+			state.selectedSong = STORY_LEVELS[idx].label;
+			state.selectedDiff = `Level ${idx + 1}`;
+			levelBpm = data.bpm;
+			levelDuration = data.duration;
+			state.resetGameState();
+			state.phase = "game";
+		};
+
 		const songMetas: SongMeta[] = SONG_FILES.map((f) => ({
 			name: f.replace(/^\d+\s+/, "").replace(/\.osz$/i, ""),
-			path: `https://res.cloudinary.com/rhythm-mania/raw/upload/songs/${encodeURIComponent(f)}`,
+			path: songPath(f),
 		}));
 
 		const recordHit = (judgement: "perfect" | "great" | "okay" | "miss") => {
@@ -152,19 +196,24 @@ export function useGameLoop(
 				ctx.fillText("rhythm mania", W / 2, 30);
 				ctx.fillStyle = "#555";
 				ctx.font = "9px Typecast";
-				ctx.fillText("select a song", W / 2, 46);
+				ctx.fillText("creative mode", W / 2, 46);
 				ctx.textAlign = "left";
 				let y = 60;
 				for (const song of songMetas) {
 					drawBtn(15, y, W - 30, 36, song.name, () => {
 						state.selectedSong = song.name;
+						state.mode = "free";
 						loadOsz(state, song.path);
 					});
 					y += 44;
 				}
-				drawBtn(15, H - 30, W - 30, 20, "custom song (.osz)", () =>
-					fileInput.click(),
-				);
+				drawBtn(15, H - 54, W - 30, 20, "custom song (.osz)", () => {
+					state.mode = "free";
+					fileInput.click();
+				});
+				drawBtn(15, H - 30, W - 30, 20, "<- back", () => {
+					state.phase = "story-select";
+				});
 			} else if (state.phase === "difficulty") {
 				ctx.fillStyle = "#181818";
 				ctx.fillRect(0, 0, W, H);
@@ -241,7 +290,18 @@ export function useGameLoop(
 					ctx.fillText("A", 58, HZ + 20);
 					ctx.fillText("D", 148, HZ + 20);
 
-					const now = state.audio?.currentTime ?? 0;
+					const now = state.audio
+						? state.audio.currentTime
+						: (performance.now() - storyStartMs) / 1000;
+
+					if (state.mode === "story") {
+						const beat = Math.floor(now / (60 / levelBpm));
+						if (beat > lastTickBeat) {
+							lastTickBeat = beat;
+							playTick();
+						}
+					}
+
 					while (
 						chartIdx < state.chart.length &&
 						state.chart[chartIdx].time - now <= SCROLL_TIME
@@ -260,22 +320,83 @@ export function useGameLoop(
 						n.y += SPEED / 60;
 						const x = n.lane === 0 ? 45 : 135;
 						if (n.hold > 0) {
-							ctx.fillStyle = "rgba(85,179,59,0.4)";
-							ctx.fillRect(x + NW / 2 - TW / 2, n.y, TW, n.hold);
-							ctx.drawImage(tintedSprite, x, n.y + n.hold, NW, TH);
+							if (n.held) {
+								if (!keys[n.lane]) {
+									n.done = true;
+									recordHit("miss");
+								} else if (n.y >= HZ + n.hold) {
+									n.done = true;
+									recordHit("great");
+								}
+							} else if (n.y > HZ + 25) {
+								n.done = true;
+								recordHit("miss");
+							}
+
+							ctx.fillStyle = n.held
+								? "rgba(85,179,59,0.7)"
+								: "rgba(85,179,59,0.4)";
+							ctx.fillRect(x + NW / 2 - TW / 2, n.y - n.hold, TW, n.hold);
+							ctx.drawImage(tintedSprite, x, n.y, NW, TH);
 						} else {
 							ctx.drawImage(tintedSprite, x, n.y, NW, TH);
-						}
-						if (n.y > HZ + 25) {
-							n.done = true;
-							recordHit("miss");
+							if (n.y > HZ + 25) {
+								n.done = true;
+								recordHit("miss");
+							}
 						}
 					}
 					notes = notes.filter((n) => !n.done);
 					if (state.audio?.ended) state.phase = "results";
+					if (!state.audio && now >= levelDuration) state.phase = "results";
 				}
+			} else if (state.phase === "story-select") {
+				drawStorySelect(
+					ctx,
+					storyProgress,
+					STORY_LEVELS,
+					drawBtn,
+					() => {
+						startChart(0);
+					},
+					() => {
+						state.phase = "menu";
+					},
+				);
 			} else if (state.phase === "results") {
-				drawResults(ctx, state, drawBtn);
+				if (state.mode === "story") {
+					const accuracy =
+						state.totalNotes === 0
+							? 100
+							: ((state.perfectCount * 3 +
+									state.greatCount * 2 +
+									state.okayCount) /
+									(state.totalNotes * 3)) *
+								100;
+					const level = STORY_LEVELS[state.storyLevel];
+					const passed = accuracy >= level.minAccuracy;
+					if (passed && state.storyLevel + 1 > storyProgress) {
+						storyProgress = state.storyLevel + 1;
+						try {
+							localStorage.setItem("rm_story_progress", String(storyProgress));
+						} catch {}
+					}
+					drawResults(ctx, state, drawBtn, {
+						passed,
+						hasNext: state.storyLevel < STORY_LEVELS.length - 1,
+						onNext: () => {
+							startChart(state.storyLevel + 1);
+						},
+						onRetry: () => {
+							startChart(state.storyLevel);
+						},
+						onBack: () => {
+							state.phase = "story-select";
+						},
+					});
+				} else {
+					drawResults(ctx, state, drawBtn);
+				}
 			}
 
 			requestAnimationFrame(loop);
@@ -285,7 +406,9 @@ export function useGameLoop(
 			if (state.phase !== "game") return;
 			if (!started) {
 				started = true;
-				state.audio?.play();
+				lastTickBeat = -1;
+				if (state.audio) state.audio.play();
+				else storyStartMs = performance.now();
 				return;
 			}
 			const l =
@@ -293,12 +416,34 @@ export function useGameLoop(
 			if (l !== -1) {
 				keys[l] = true;
 				const c = notes.find(
-					(n) => !n.done && n.lane === l && Math.abs(n.y - HZ) < 35,
+					(n) => !n.done && !n.held && n.lane === l && Math.abs(n.y - HZ) < 18,
 				);
 				if (c) {
-					c.done = true;
+					if (c.hold > 0) {
+						c.held = true;
+					} else {
+						c.done = true;
+					}
 					hitEffects.push({ lane: l, t: 15, y: c.y });
-					recordHit(Math.abs(c.y - HZ) < 10 ? "perfect" : "great");
+					recordHit(Math.abs(c.y - HZ) < 8 ? "perfect" : "great");
+					if (state.mode === "story") {
+						if (l === 0) playKick();
+						else playSnare();
+					}
+				} else {
+					const isHolding = notes.some((n) => n.held && n.lane === l);
+					const bad = notes.find(
+						(n) =>
+							!n.done && !n.held && n.lane === l && Math.abs(n.y - HZ) < 35,
+					);
+					if (!isHolding && bad) {
+						bad.done = true;
+						state.combo = 0;
+						state.missCount++;
+						state.score = Math.max(0, state.score - 1);
+						status = "Bad!";
+						statusTimer = 50;
+					}
 				}
 			}
 		};

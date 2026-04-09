@@ -1,19 +1,60 @@
 import { GAME_SETTINGS } from "@/lib/constants";
-import type { GameStateRefs } from "@/lib/types";
+import type { GameStateRefs, StoryLevel } from "@/lib/types";
+
+type DrawBtnFn = (
+	x: number,
+	y: number,
+	w: number,
+	h: number,
+	label: string,
+	action: () => void,
+) => void;
 
 const { W, H } = GAME_SETTINGS;
+
+export function drawStorySelect(
+	ctx: CanvasRenderingContext2D,
+	storyProgress: number,
+	levels: StoryLevel[],
+	drawBtn: DrawBtnFn,
+	onPlay: () => void,
+	onCreative: () => void,
+) {
+	ctx.fillStyle = "#181818";
+	ctx.fillRect(0, 0, W, H);
+
+	ctx.fillStyle = "#5a5";
+	ctx.font = "bold 18px KiwiSoda";
+	ctx.textAlign = "center";
+	ctx.fillText("rhythm mania", W / 2, 30);
+
+	ctx.fillStyle = "#555";
+	ctx.font = "9px Typecast";
+	if (storyProgress > 0) {
+		ctx.fillText(
+			`${storyProgress} / ${levels.length} levels cleared`,
+			W / 2,
+			46,
+		);
+	} else {
+		ctx.fillText("story mode", W / 2, 46);
+	}
+
+	drawBtn(15, H / 2 - 22, W - 30, 36, "play", onPlay);
+	drawBtn(15, H - 30, W - 30, 20, "creative mode", onCreative);
+}
 
 export function drawResults(
 	ctx: CanvasRenderingContext2D,
 	state: GameStateRefs,
-	drawBtn: (
-		x: number,
-		y: number,
-		w: number,
-		h: number,
-		label: string,
-		action: () => void,
-	) => void,
+	drawBtn: DrawBtnFn,
+	storyOpts?: {
+		passed: boolean;
+		hasNext: boolean;
+		onNext: () => void;
+		onRetry: () => void;
+		onBack: () => void;
+	},
 ) {
 	ctx.fillStyle = "#181818";
 	ctx.fillRect(0, 0, W, H);
@@ -98,7 +139,25 @@ export function drawResults(
 	}
 
 	ctx.textAlign = "left";
-	drawBtn(15, H - 30, W - 30, 20, "back to menu", () => {
-		state.phase = "menu";
-	});
+
+	if (storyOpts) {
+		const { passed, hasNext, onNext, onRetry, onBack } = storyOpts;
+		ctx.textAlign = "center";
+		ctx.font = "bold 13px Typecast";
+		ctx.fillStyle = passed ? "#5a5" : "#f55";
+		ctx.fillText(passed ? "PASS" : "FAIL", W / 2, ry + 8);
+		ctx.textAlign = "left";
+
+		const half = (W - 38) / 2;
+		drawBtn(15, H - 30, half, 20, "retry", onRetry);
+		if (passed && hasNext) {
+			drawBtn(15 + half + 8, H - 30, half, 20, "next ->", onNext);
+		} else {
+			drawBtn(15 + half + 8, H - 30, half, 20, "story", onBack);
+		}
+	} else {
+		drawBtn(15, H - 30, W - 30, 20, "back to menu", () => {
+			state.phase = "menu";
+		});
+	}
 }

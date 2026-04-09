@@ -32,6 +32,24 @@ export async function loadFromZip(
 	}
 }
 
+export async function loadStoryLevel(
+	state: GameStateRefs,
+	path: string,
+	diffIndex: number,
+) {
+	state.phase = "loading";
+	state.errorMsg = "";
+	try {
+		const z = await fetchZip(path);
+		const { osuFiles } = await getDifficulties(z);
+		const filename = osuFiles[Math.min(diffIndex, osuFiles.length - 1)];
+		await loadFromZip(state, z, filename);
+	} catch (e) {
+		state.errorMsg = e instanceof Error ? e.message : String(e);
+		state.phase = "story-select";
+	}
+}
+
 export async function loadOsz(state: GameStateRefs, source: File | string) {
 	state.phase = "loading";
 	state.errorMsg = "";
