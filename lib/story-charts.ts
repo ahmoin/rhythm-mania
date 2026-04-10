@@ -125,4 +125,276 @@ X
  X
 	`,
 	),
+	parse(
+		80,
+		`
+
+
+
+
+X
+ X
+
+X
+
+
+
+
+X
+ X
+
+X
+
+
+
+
+X
+ X
+
+X
+
+
+
+
+X
+ X
+
+X
+
+
+
+
+X
+ X
+
+X
+
+
+
+
+X
+ X
+
+X
+
+
+
+
+X
+ X
+
+X
+
+
+
+
+X
+ X
+
+X
+
+	`,
+	),
+	parse(
+		80,
+		`
+
+
+X
+ X
+C
+C
+
+
+
+
+X
+ X
+C
+C
+
+
+
+
+X
+ X
+C
+C
+
+
+
+
+X
+
+C
+C
+ X
+C
+C
+
+X
+ X
+C
+C
+
+
+
+
+X
+ X
+C
+C
+
+
+
+
+X
+ X
+C
+C
+
+
+
+
+X
+
+C
+C
+ X
+
+	`,
+	),
+	parse(
+		80,
+		`
+ C
+ C
+ C
+ C
+X
+
+
+
+
+
+ C
+ C
+ C
+ C
+X
+
+ C
+ C
+ C
+ C
+X
+
+
+
+
+
+ C
+ C
+ C
+ C
+X
+
+C
+C
+C
+C
+ X
+
+
+
+
+
+C
+C
+C
+C
+ X
+
+ X
+
+
+
+X
+
+
+
+C
+C
+C
+ C
+ C
+ C
+X
+
+ C
+ C
+ C
+ C
+X
+
+
+
+
+
+ C
+ C
+ C
+ C
+X
+
+ C
+ C
+ C
+ C
+X
+
+
+
+
+
+ C
+ C
+ C
+ C
+X
+
+C
+C
+C
+C
+ X
+
+
+
+
+
+C
+C
+C
+C
+ X
+
+ X
+
+
+
+X
+
+
+
+C
+C
+C
+ C
+ C
+ C
+X
+
+`,
+	),
 ];
