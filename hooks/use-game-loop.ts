@@ -323,7 +323,7 @@ export function useGameLoop(
 			if (l !== -1) {
 				keys[l] = true;
 				const c = locals.notes.find(
-					(n) => !n.done && !n.held && n.lane === l && Math.abs(n.y - HZ) < 18,
+					(n) => !n.done && !n.held && n.lane === l && Math.abs(n.y - HZ) < 25,
 				);
 				if (c) {
 					if (c.hold > 0) {
@@ -332,7 +332,8 @@ export function useGameLoop(
 						c.done = true;
 					}
 					locals.hitEffects.push({ lane: l, t: 15, y: c.y });
-					recordHit(Math.abs(c.y - HZ) < 8 ? "perfect" : "great");
+					const dist = Math.abs(c.y - HZ);
+					recordHit(dist < 7 ? "perfect" : dist < 18 ? "great" : "okay");
 					if (state.mode === "story") {
 						if (l === 0) playKick();
 						else playSnare();

@@ -6,67 +6,123 @@ export type StoryChart = {
 	duration: number;
 };
 
-function build(
-	bpm: number,
-	bars: number,
-	pattern: [number, number, number?][],
-): StoryChart {
+function parse(bpm: number, visual: string): StoryChart {
+	const lines = visual.split("\n");
 	const beat = 60 / bpm;
 	const leadIn = 4 * beat;
+	const lineTime = 0.25 * beat;
 	const notes: ChartNote[] = [];
-	for (let bar = 0; bar < bars; bar++) {
-		for (const [b, lane, holdBeats = 0] of pattern) {
-			notes.push({
-				time: leadIn + (bar * 4 + b) * beat,
-				lane,
-				hold: holdBeats * beat,
-			});
+
+	const activeHolds: (ChartNote | null)[] = [null, null];
+
+	lines.forEach((line, index) => {
+		if (line.trim() === "") return;
+
+		const currentTime = leadIn + index * lineTime;
+
+		const isBoth = line.startsWith("XX") || line.startsWith("CC");
+		const isRight = line.startsWith(" ");
+		const isLeft = !isRight || isBoth;
+		const finalRight = isRight || isBoth;
+
+		const processLane = (lane: number, char: string) => {
+			if (char === "X") {
+				notes.push({ time: currentTime, lane, hold: 0 });
+				activeHolds[lane] = null;
+			} else if (char === "C") {
+				if (activeHolds[lane]) {
+					activeHolds[lane]!.hold += lineTime;
+				} else {
+					const newNote = { time: currentTime, lane, hold: lineTime };
+					notes.push(newNote);
+					activeHolds[lane] = newNote;
+				}
+			} else {
+				activeHolds[lane] = null;
+			}
+		};
+
+		if (isLeft) processLane(0, line.trim()[0]);
+		if (finalRight) {
+			const char = isBoth ? line.trim()[1] : line.trim()[0];
+			processLane(1, char);
 		}
-	}
+	});
+
 	return {
 		chart: notes.sort((a, b) => a.time - b.time),
 		bpm,
-		duration: leadIn + bars * 4 * beat + beat * 2,
+		duration: leadIn + lines.length * lineTime + beat * 2,
 	};
 }
 
 export const STORY_CHARTS: StoryChart[] = [
-	build(80, 16, [
-		[0, 0],
-		[1, 1],
-		[2, 0],
-		[3, 1],
-	]),
+	parse(
+		80,
+		`
+X
 
-	build(90, 16, [
-		[0, 0, 1],
-		[1, 1],
-		[1.5, 0],
-		[2, 0, 1],
-		[3, 1],
-		[3.5, 0],
-	]),
+ X
 
-	build(100, 16, [
-		[0, 0],
-		[0.5, 0],
-		[1, 1, 0.5],
-		[1.5, 0],
-		[2, 0],
-		[2.5, 1, 0.5],
-		[3, 0],
-		[3.5, 1],
-	]),
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+C
+ X
 
-	build(110, 16, [
-		[0, 0, 0.5],
-		[0.5, 0],
-		[1, 1, 0.5],
-		[1.75, 1],
-		[2, 0, 0.5],
-		[2.5, 0],
-		[3, 1, 0.5],
-		[3.25, 0],
-		[3.75, 1],
-	]),
+X
+
+ X
+
+X
+
+ X
+
+X
+
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+ C
+X
+
+ X
+
+X
+
+ X
+	`,
+	),
 ];
