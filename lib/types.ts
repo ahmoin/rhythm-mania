@@ -32,6 +32,20 @@ export type Btn = {
 	action: () => void;
 };
 
+export type GameLoopLocals = {
+	started: boolean;
+	hitEffects: HitEffect[];
+	notes: Note[];
+	keys: boolean[];
+	storyStartMs: number;
+	levelBpm: number;
+	levelDuration: number;
+	lastTickBeat: number;
+	chartIdx: number;
+	statusTimer: number;
+	status: string;
+};
+
 export interface GameStateRefs {
 	phase: Phase;
 	selectedSong: string;

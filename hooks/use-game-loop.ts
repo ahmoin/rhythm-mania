@@ -5,14 +5,14 @@ import { GAME_SETTINGS, SONG_FILES, STORY_LEVELS } from "@/lib/constants";
 import { loadFromZip, loadOsz } from "@/lib/game-actions";
 import { STORY_CHARTS } from "@/lib/story-charts";
 import { playKick, playSnare, playTick } from "@/lib/synth";
-import type {
-	Btn,
-	GameStateRefs,
-	HitEffect,
-	Note,
-	SongMeta,
-} from "@/lib/types";
-import { drawResults, drawStorySelect } from "@/lib/ui-draw";
+import type { Btn, GameLoopLocals, GameStateRefs, SongMeta } from "@/lib/types";
+import {
+	drawDifficulty,
+	drawGame,
+	drawMenu,
+	drawResults,
+	drawStorySelect,
+} from "@/lib/ui-draw";
 
 export function useGameLoop(
 	canvasRef: React.RefObject<HTMLCanvasElement | null>,
@@ -24,8 +24,7 @@ export function useGameLoop(
 		if (!canvas || !fileInput) return;
 
 		const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
-		const { W, H, HZ, TH, NW, TW, SPEED } = GAME_SETTINGS;
-		const SCROLL_TIME = H / SPEED;
+		const { W, H, HZ, NW } = GAME_SETTINGS;
 
 		const sprite = new Image();
 		sprite.src = "/beat-indicator-template.png";
@@ -51,6 +50,22 @@ export function useGameLoop(
 		const songPath = (f: string) =>
 			`https://res.cloudinary.com/rhythm-mania/raw/upload/songs/${encodeURIComponent(f)}`;
 
+		const keys = [false, false];
+
+		const locals: GameLoopLocals = {
+			started: false,
+			hitEffects: [],
+			notes: [],
+			keys,
+			storyStartMs: 0,
+			levelBpm: 120,
+			levelDuration: 0,
+			lastTickBeat: -1,
+			chartIdx: 0,
+			statusTimer: 0,
+			status: "",
+		};
+
 		const state: GameStateRefs = {
 			phase: "story-select",
 			selectedSong: "",
@@ -72,11 +87,11 @@ export function useGameLoop(
 			mode: "free",
 			storyLevel: 0,
 			resetGameState: () => {
-				chartIdx = 0;
-				notes = [];
+				locals.chartIdx = 0;
+				locals.notes = [];
 				keys[0] = false;
 				keys[1] = false;
-				hitEffects = [];
+				locals.hitEffects = [];
 				state.score = 0;
 				state.perfectCount = 0;
 				state.greatCount = 0;
@@ -84,27 +99,11 @@ export function useGameLoop(
 				state.missCount = 0;
 				state.combo = 0;
 				state.maxCombo = 0;
-				status = "";
-				statusTimer = 0;
-				started = false;
+				locals.status = "";
+				locals.statusTimer = 0;
+				locals.started = false;
 			},
 		};
-
-		let storyStartMs = 0;
-		let levelBpm = 120;
-		let levelDuration = 0;
-		let lastTickBeat = -1;
-
-		let chartIdx = 0,
-			started = false,
-			status = "",
-			statusTimer = 0;
-		let mouseX = 0,
-			mouseY = 0;
-		let notes: Note[] = [];
-		let hitEffects: HitEffect[] = [];
-		let buttons: Btn[] = [];
-		const keys = [false, false];
 
 		const startChart = (idx: number) => {
 			const data = STORY_CHARTS[idx];
@@ -122,8 +121,8 @@ export function useGameLoop(
 			state.totalNotes = data.chart.length;
 			state.selectedSong = STORY_LEVELS[idx].label;
 			state.selectedDiff = `Level ${idx + 1}`;
-			levelBpm = data.bpm;
-			levelDuration = data.duration;
+			locals.levelBpm = data.bpm;
+			locals.levelDuration = data.duration;
 			state.resetGameState();
 			state.phase = "game";
 		};
@@ -138,24 +137,28 @@ export function useGameLoop(
 				state.perfectCount++;
 				state.score++;
 				state.combo++;
-				status = "Perfect";
+				locals.status = "Perfect";
 			} else if (judgement === "great") {
 				state.greatCount++;
 				state.score++;
 				state.combo++;
-				status = "Great";
+				locals.status = "Great";
 			} else if (judgement === "okay") {
 				state.okayCount++;
 				state.combo = 0;
-				status = "Okay";
+				locals.status = "Okay";
 			} else {
 				state.missCount++;
 				state.combo = 0;
-				status = "Miss!";
+				locals.status = "Miss!";
 			}
-			statusTimer = 50;
+			locals.statusTimer = 50;
 			if (state.combo > state.maxCombo) state.maxCombo = state.combo;
 		};
+
+		let mouseX = 0,
+			mouseY = 0;
+		let buttons: Btn[] = [];
 
 		const drawBtn = (
 			x: number,
@@ -188,168 +191,44 @@ export function useGameLoop(
 			buttons = [];
 
 			if (state.phase === "menu") {
-				ctx.fillStyle = "#181818";
-				ctx.fillRect(0, 0, W, H);
-				ctx.fillStyle = "#5a5";
-				ctx.font = "bold 18px KiwiSoda";
-				ctx.textAlign = "center";
-				ctx.fillText("rhythm mania", W / 2, 30);
-				ctx.fillStyle = "#555";
-				ctx.font = "9px Typecast";
-				ctx.fillText("creative mode", W / 2, 46);
-				ctx.textAlign = "left";
-				let y = 60;
-				for (const song of songMetas) {
-					drawBtn(15, y, W - 30, 36, song.name, () => {
+				drawMenu(
+					ctx,
+					songMetas,
+					drawBtn,
+					(song) => {
 						state.selectedSong = song.name;
 						state.mode = "free";
 						loadOsz(state, song.path);
-					});
-					y += 44;
-				}
-				drawBtn(15, H - 54, W - 30, 20, "custom song (.osz)", () => {
-					state.mode = "free";
-					fileInput.click();
-				});
-				drawBtn(15, H - 30, W - 30, 20, "<- back", () => {
-					state.phase = "story-select";
-				});
+					},
+					() => {
+						state.mode = "free";
+						fileInput.click();
+					},
+					() => {
+						state.phase = "story-select";
+					},
+				);
 			} else if (state.phase === "difficulty") {
-				ctx.fillStyle = "#181818";
-				ctx.fillRect(0, 0, W, H);
-				ctx.fillStyle = "#5a5";
-				ctx.font = "bold 13px Typecast";
-				ctx.textAlign = "center";
-				ctx.fillText("select difficulty", W / 2, 28);
-				ctx.textAlign = "left";
-				let y = 50;
-				for (const d of state.difficulties) {
-					drawBtn(15, y, W - 30, 24, d.name, () => {
-						if (state.currentZip) loadFromZip(state, state.currentZip, d.file);
-					});
-					y += 32;
-				}
-				drawBtn(15, H - 30, 50, 20, "<- back", () => {
-					state.phase = "menu";
-					state.difficulties = [];
-				});
+				drawDifficulty(
+					ctx,
+					state,
+					drawBtn,
+					(file) => {
+						if (state.currentZip) loadFromZip(state, state.currentZip, file);
+					},
+					() => {
+						state.phase = "menu";
+						state.difficulties = [];
+					},
+				);
 			} else if (state.phase === "game") {
-				ctx.fillStyle = "#181818";
-				ctx.fillRect(0, 0, W, H);
-				if (!started) {
-					ctx.fillStyle = "#fff";
-					ctx.font = "bold 16px Typecast";
-					ctx.textAlign = "center";
-					ctx.fillText("press any key to start", W / 2, H / 2);
-					ctx.textAlign = "left";
-				} else {
-					for (const fx of hitEffects) {
-						fx.t--;
-						const t = 1 - fx.t / 15;
-						const scale = 1 + 0.2 * Math.sqrt(1 - (t - 1) ** 2);
-						const alpha = 0.5 * Math.sqrt(1 - t * t);
-						const cx = fx.lane === 0 ? 45 + NW / 2 : 135 + NW / 2;
-						const cy = fx.y;
-						const rw = NW + 10;
-						const rh = rw * (10 / 32);
-						ctx.save();
-						ctx.globalAlpha = alpha;
-						ctx.translate(cx, cy);
-						ctx.scale(scale, scale);
-						ctx.drawImage(outlineSprite, -rw / 2, -rh / 2, rw, rh);
-						ctx.restore();
-					}
-					hitEffects = hitEffects.filter((fx) => fx.t > 0);
-					ctx.strokeStyle = "#5a5";
-					ctx.lineWidth = 2;
-					ctx.beginPath();
-					ctx.moveTo(35, HZ);
-					ctx.lineTo(W - 35, HZ);
-					ctx.stroke();
-
-					ctx.fillStyle = "#fff";
-					ctx.font = "bold 20px Typecast";
-					ctx.textAlign = "right";
-					ctx.fillText(`${state.score}`, W - 15, HZ - 30);
-					if (state.combo > 1) {
-						ctx.fillStyle = "#5a5";
-						ctx.font = "bold 11px Typecast";
-						ctx.textAlign = "left";
-						ctx.fillText(`${state.combo}x`, 15, HZ - 30);
-					}
-					if (statusTimer > 0) {
-						statusTimer--;
-						ctx.font = "12px Typecast";
-						ctx.fillStyle = "#ddd";
-						ctx.textAlign = "right";
-						ctx.fillText(status, W - 15, HZ - 12);
-					}
-					ctx.textAlign = "left";
-					ctx.fillStyle = "#aaa";
-					ctx.font = "14px Typecast";
-					ctx.fillText("A", 58, HZ + 20);
-					ctx.fillText("D", 148, HZ + 20);
-
-					const now = state.audio
-						? state.audio.currentTime
-						: (performance.now() - storyStartMs) / 1000;
-
-					if (state.mode === "story") {
-						const beat = Math.floor(now / (60 / levelBpm));
-						if (beat > lastTickBeat) {
-							lastTickBeat = beat;
-							playTick();
-						}
-					}
-
-					while (
-						chartIdx < state.chart.length &&
-						state.chart[chartIdx].time - now <= SCROLL_TIME
-					) {
-						const cn = state.chart[chartIdx++];
-						notes.push({
-							lane: cn.lane,
-							y: HZ - (cn.time - now) * SPEED,
-							hold: cn.hold * SPEED,
-							held: false,
-							done: false,
-						});
-					}
-					for (const n of notes) {
-						if (n.done) continue;
-						n.y += SPEED / 60;
-						const x = n.lane === 0 ? 45 : 135;
-						if (n.hold > 0) {
-							if (n.held) {
-								if (!keys[n.lane]) {
-									n.done = true;
-									recordHit("miss");
-								} else if (n.y >= HZ + n.hold) {
-									n.done = true;
-									recordHit("great");
-								}
-							} else if (n.y > HZ + 25) {
-								n.done = true;
-								recordHit("miss");
-							}
-
-							ctx.fillStyle = n.held
-								? "rgba(85,179,59,0.7)"
-								: "rgba(85,179,59,0.4)";
-							ctx.fillRect(x + NW / 2 - TW / 2, n.y - n.hold, TW, n.hold);
-							ctx.drawImage(tintedSprite, x, n.y, NW, TH);
-						} else {
-							ctx.drawImage(tintedSprite, x, n.y, NW, TH);
-							if (n.y > HZ + 25) {
-								n.done = true;
-								recordHit("miss");
-							}
-						}
-					}
-					notes = notes.filter((n) => !n.done);
-					if (state.audio?.ended) state.phase = "results";
-					if (!state.audio && now >= levelDuration) state.phase = "results";
-				}
+				drawGame(
+					ctx,
+					state,
+					locals,
+					{ outline: outlineSprite, tinted: tintedSprite },
+					{ recordHit, playTick, playKick, playSnare },
+				);
 			} else if (state.phase === "story-select") {
 				drawStorySelect(
 					ctx,
@@ -404,18 +283,18 @@ export function useGameLoop(
 
 		const down = (e: KeyboardEvent) => {
 			if (state.phase !== "game") return;
-			if (!started) {
-				started = true;
-				lastTickBeat = -1;
+			if (!locals.started) {
+				locals.started = true;
+				locals.lastTickBeat = -1;
 				if (state.audio) state.audio.play();
-				else storyStartMs = performance.now();
+				else locals.storyStartMs = performance.now();
 				return;
 			}
 			const l =
 				e.key.toLowerCase() === "a" ? 0 : e.key.toLowerCase() === "d" ? 1 : -1;
 			if (l !== -1) {
 				keys[l] = true;
-				const c = notes.find(
+				const c = locals.notes.find(
 					(n) => !n.done && !n.held && n.lane === l && Math.abs(n.y - HZ) < 18,
 				);
 				if (c) {
@@ -424,15 +303,15 @@ export function useGameLoop(
 					} else {
 						c.done = true;
 					}
-					hitEffects.push({ lane: l, t: 15, y: c.y });
+					locals.hitEffects.push({ lane: l, t: 15, y: c.y });
 					recordHit(Math.abs(c.y - HZ) < 8 ? "perfect" : "great");
 					if (state.mode === "story") {
 						if (l === 0) playKick();
 						else playSnare();
 					}
 				} else {
-					const isHolding = notes.some((n) => n.held && n.lane === l);
-					const bad = notes.find(
+					const isHolding = locals.notes.some((n) => n.held && n.lane === l);
+					const bad = locals.notes.find(
 						(n) =>
 							!n.done && !n.held && n.lane === l && Math.abs(n.y - HZ) < 35,
 					);
@@ -441,8 +320,8 @@ export function useGameLoop(
 						state.combo = 0;
 						state.missCount++;
 						state.score = Math.max(0, state.score - 1);
-						status = "Bad!";
-						statusTimer = 50;
+						locals.status = "Bad!";
+						locals.statusTimer = 50;
 					}
 				}
 			}
