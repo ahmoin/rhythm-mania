@@ -9,6 +9,7 @@ import type { Btn, GameLoopLocals, GameStateRefs, SongMeta } from "@/lib/types";
 import {
 	drawDifficulty,
 	drawGame,
+	drawIntro,
 	drawMenu,
 	drawResults,
 	drawStorySelect,
@@ -17,6 +18,7 @@ import {
 export function useGameLoop(
 	canvasRef: React.RefObject<HTMLCanvasElement | null>,
 	fileRef: React.RefObject<HTMLInputElement | null>,
+	flashRef: React.RefObject<HTMLDivElement | null>,
 ) {
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -64,10 +66,13 @@ export function useGameLoop(
 			chartIdx: 0,
 			statusTimer: 0,
 			status: "",
+			introStartTime: performance.now(),
+			flashOverlay: 0,
+			flashOutStartTime: 0,
 		};
 
 		const state: GameStateRefs = {
-			phase: "story-select",
+			phase: "intro",
 			selectedSong: "",
 			selectedDiff: "",
 			currentZip: null,
@@ -190,6 +195,25 @@ export function useGameLoop(
 			ctx.imageSmoothingEnabled = false;
 			buttons = [];
 
+			if (state.phase === "intro") {
+				const elapsed = performance.now() - locals.introStartTime;
+				if (elapsed < 1200) {
+					drawIntro(ctx, elapsed);
+					if (elapsed >= 1000) {
+						locals.flashOverlay = (elapsed - 1000) / 200;
+					}
+				} else {
+					locals.flashOverlay = 1;
+					state.phase = "story-select";
+					locals.flashOutStartTime = performance.now();
+				}
+			} else if (locals.flashOverlay > 0) {
+				locals.flashOverlay = Math.max(
+					0,
+					1 - (performance.now() - locals.flashOutStartTime) / 500,
+				);
+			}
+
 			if (state.phase === "menu") {
 				drawMenu(
 					ctx,
@@ -276,6 +300,10 @@ export function useGameLoop(
 				} else {
 					drawResults(ctx, state, drawBtn);
 				}
+			}
+
+			if (flashRef.current) {
+				flashRef.current.style.opacity = String(locals.flashOverlay);
 			}
 
 			requestAnimationFrame(loop);
@@ -374,5 +402,5 @@ export function useGameLoop(
 			window.removeEventListener("keydown", down);
 			if (state.audio) state.audio.pause();
 		};
-	}, [canvasRef, fileRef]);
+	}, [canvasRef, fileRef, flashRef]);
 }

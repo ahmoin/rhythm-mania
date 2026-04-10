@@ -17,6 +17,24 @@ type DrawBtnFn = (
 
 const { W, H } = GAME_SETTINGS;
 
+export function drawIntro(ctx: CanvasRenderingContext2D, elapsed: number) {
+	ctx.fillStyle = "#181818";
+	ctx.fillRect(0, 0, W, H);
+	ctx.textAlign = "center";
+
+	ctx.fillStyle = "#5a5";
+	ctx.font = "bold 13px Typecast";
+	ctx.fillText("ahmoin", W / 2, H / 2 - 6);
+
+	if (elapsed >= 500) {
+		ctx.fillStyle = "#555";
+		ctx.font = "9px Typecast";
+		ctx.fillText("presents", W / 2, H / 2 + 10);
+	}
+
+	ctx.textAlign = "left";
+}
+
 export function drawMenu(
 	ctx: CanvasRenderingContext2D,
 	songMetas: SongMeta[],

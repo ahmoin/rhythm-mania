@@ -10,6 +10,7 @@ export type Note = {
 export type HitEffect = { lane: number; t: number; y: number };
 export type ChartNote = { time: number; lane: number; hold: number };
 export type Phase =
+	| "intro"
 	| "menu"
 	| "loading"
 	| "difficulty"
@@ -44,6 +45,9 @@ export type GameLoopLocals = {
 	chartIdx: number;
 	statusTimer: number;
 	status: string;
+	introStartTime: number;
+	flashOverlay: number;
+	flashOutStartTime: number;
 };
 
 export interface GameStateRefs {
