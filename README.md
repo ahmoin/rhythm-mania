@@ -23,7 +23,7 @@ A 2-lane rhythm game built with Next.js and the Canvas API. Supports osu beatmap
 |---|---|---|
 | Perfect | ±7px | 3 |
 | Great | ±18px | 2 |
-| Okay | beyond Great | 1 |
-| Miss |: | 0 |
+| Okay | any other window | 1 |
+| Miss | fully missed | 0 |
 
 Accuracy is calculated as earned points divided by maximum possible points.
